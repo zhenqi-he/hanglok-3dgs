@@ -1,0 +1,3 @@
+1, modify scene/dataset_readers.py, to set not read transfomers_test.json 's image, indeed to set it to None
+2, modify utils/camera_utils.py, if given image is None, which indicates it is from test set, then not read and set gt to be None also
+3, modify scene/cameras.py, if given image is None, which indicates it is from test set, then not read and set gt to be None also

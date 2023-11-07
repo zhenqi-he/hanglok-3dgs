@@ -81,12 +81,14 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
         uid = intr.id
         R = np.transpose(qvec2rotmat(extr.qvec))
         T = np.array(extr.tvec)
-
+        # print(intr.model)
+        # print(intr.params)
         if intr.model=="SIMPLE_PINHOLE":
             focal_length_x = intr.params[0]
             FovY = focal2fov(focal_length_x, height)
             FovX = focal2fov(focal_length_x, width)
-        elif intr.model=="PINHOLE":
+        # elif intr.model=="PINHOLE":
+        elif 1:
             focal_length_x = intr.params[0]
             focal_length_y = intr.params[1]
             FovY = focal2fov(focal_length_y, height)
@@ -184,37 +186,45 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
         fovx = contents["camera_angle_x"]
 
         frames = contents["frames"]
+
+        width = contents['w']
+        height = contents['h']
+
+        img_path_gdrive = '/content/drive/MyDrive/横乐/processed_07_06_18_40/images'
         for idx, frame in enumerate(frames):
-            cam_name = os.path.join(path, frame["file_path"] + extension)
+            if extension in frame["file_path"]:
+                cam_name = os.path.join(img_path_gdrive,frame["file_path"].split('/')[-1])
+            else:
+                cam_name = os.path.join(img_path_gdrive,frame["file_path"].split('/')[-1]+extension)
+                # cam_name = os.path.join(frame["file_path"] + extension)
 
-            # NeRF 'transform_matrix' is a camera-to-world transform
-            c2w = np.array(frame["transform_matrix"])
-            # change from OpenGL/Blender camera axes (Y up, Z back) to COLMAP (Y down, Z forward)
-            c2w[:3, 1:3] *= -1
+            matrix = np.linalg.inv(np.array(frame["transform_matrix"]))
+            R = -np.transpose(matrix[:3,:3])
+            R[:,0] = -R[:,0]
+            T = -matrix[:3, 3]
+            
+            if 'train' in transformsfile:
+                image_path = os.path.join(path, cam_name)
+                image_name = Path(cam_name).stem
+                image = Image.open(image_path)
 
-            # get the world-to-camera transform and set R, T
-            w2c = np.linalg.inv(c2w)
-            R = np.transpose(w2c[:3,:3])  # R is stored transposed due to 'glm' in CUDA code
-            T = w2c[:3, 3]
+                im_data = np.array(image.convert("RGBA"))
 
-            image_path = os.path.join(path, cam_name)
-            image_name = Path(cam_name).stem
-            image = Image.open(image_path)
+                bg = np.array([1,1,1]) if white_background else np.array([0, 0, 0])
 
-            im_data = np.array(image.convert("RGBA"))
-
-            bg = np.array([1,1,1]) if white_background else np.array([0, 0, 0])
-
-            norm_data = im_data / 255.0
-            arr = norm_data[:,:,:3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
-            image = Image.fromarray(np.array(arr*255.0, dtype=np.byte), "RGB")
-
-            fovy = focal2fov(fov2focal(fovx, image.size[0]), image.size[1])
+                norm_data = im_data / 255.0
+                arr = norm_data[:,:,:3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
+                image = Image.fromarray(np.array(arr*255.0, dtype=np.byte), "RGB")
+            else:
+                image_name = frame["file_path"].split('/')[-1].split('.')[0]
+                image_path = cam_name 
+                image = None
+            fovy = focal2fov(fov2focal(fovx, width), height)
             FovY = fovy 
             FovX = fovx
 
             cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
-                            image_path=image_path, image_name=image_name, width=image.size[0], height=image.size[1]))
+                            image_path=image_path, image_name=image_name, width=width, height=height))
             
     return cam_infos
 
@@ -223,10 +233,10 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
     train_cam_infos = readCamerasFromTransforms(path, "transforms_train.json", white_background, extension)
     print("Reading Test Transforms")
     test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension)
-    
+    # print(test_cam_infos)
     if not eval:
         train_cam_infos.extend(test_cam_infos)
-        test_cam_infos = []
+        test_cam_infos.extend(test_cam_infos)
 
     nerf_normalization = getNerfppNorm(train_cam_infos)
 
