@@ -27,12 +27,12 @@ def comp_ray_dir_cam_fxfy(H, W, fx, fy):
     return rays_dir
 
 
-t_vals = torch.linspace(0, 1, args.num_sample, device=my_devices)
+# t_vals = torch.linspace(0, 1, args.num_sample, device=my_devices)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--num_samples', default=20) 
-    parser.add_argument('--target_dir', default='/app/hzq/data/NeRF/processed_07_06_18_40/') 
+    parser.add_argument('--target_dir', default='/Users/zhenqihe/Desktop/横乐') 
     args = parser.parse_args()
 
     target_dir = args.target_dir
@@ -46,21 +46,23 @@ def main():
     rz = np.zeros(num_samples)
 
     # Calculate the angle increment for each point
-    theta = np.linspace(0, 2*np.pi, n_points)
+    theta = np.linspace(0, 2*np.pi, num_samples)
 
     # Generate the spiral trajectory
-
-    for i in range(n_points):
+    radius = 0.1
+    height = 0.5
+    pitch = 0.5
+    for i in range(num_samples):
         rx[i] = radius * np.cos(theta[i])
         ry[i] = radius * np.sin(theta[i])
         rz[i] = pitch * theta[i] / (2*np.pi) + height
         
-        t =  np.array([rx[-1], ry[-1], rz[-1]])
-
-        rotation_matrix = cv2.Rodrigues([rx[i],ry[i],rz[i]])[0]
+        t =  np.array([rx[i], ry[i], rz[i]])
+        print(t)
+        rotation_matrix = cv2.Rodrigues(np.array([rx[i],ry[i],rz[i]]))[0]
         transform_matrix = np.row_stack((np.column_stack((rotation_matrix,t)),np.array([0,0,0,1])))
 
-        id_dict = {'file_path':os.path.join(target_images_dir,str(i)), 'transform_matrix':transform_matrix.tolist()}
+        id_dict = {'file_path':os.path.join('./images',str(i)), 'transform_matrix':transform_matrix.tolist()}
         frames.append(id_dict)
 
     out_dict = {
